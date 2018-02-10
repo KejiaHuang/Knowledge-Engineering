@@ -1,0 +1,316 @@
+---
+output: pdf_document
+---
+
+# FE590.  Assignment #3.
+
+
+## Kejia
+## `r format(Sys.time(), "%Y-%m-%d")`
+
+
+# Instructions
+
+In this assignment, you should use R markdown to answer the questions below.  Simply type your R code into embedded chunks as shown above.
+
+When you have completed the assignment, knit the document into a PDF file, and upload _both_ the .pdf and .Rmd files to Canvas.
+
+Note that you must have LaTeX installed in order to knit the equations below.  If you do not have it installed, simply delete the questions below.
+
+# Question 1 (based on JWHT Chapter 5, Problem 8)
+
+In this problem, you will perform cross-validation on a simulated data set.
+
+Generate a simulated data set as follows:
+```{r}
+set.seed(1)
+y <- rnorm(100)
+x <- rnorm(100)
+y <- x - 2*x^2 + rnorm(100)
+```
+
+   (a) In this data set, what is _n_ and what is _p_?
+   
+##### n is 100, and p is 1
+
+   (b) Create a scatterplot of _x_ against _y_. Comment on what you find.
+   
+```{r}
+plot(x,y,type="p",main="x against y",col="blue",xlab="x",ylab="y")
+```
+
+##### It looks like a parabola
+
+   (c) Set a random seed of 2, and then compute the LOOCV errors that result from fitting the following four models using least squares:
+      1.  $Y = \beta_0 + \beta_1 X + \epsilon$
+      2.  $Y = \beta_0 + \beta_1 X + +\beta_2 X^2 + \epsilon$
+      3.  $Y = \beta_0 + \beta_1 X + +\beta_2 X^2 + \beta_3 X^3 + \epsilon$
+      4.  $Y = \beta_0 + \beta_1 X + +\beta_2 X^2 + \beta_3 X^3 + \beta_4 X^4 + \epsilon$
+      
+```{r}
+library(boot)
+set.seed(2)
+y <- rnorm(100)
+x <- rnorm(100)
+y <- x - 2*x^2 + rnorm(100)
+data_1 <- data.frame(y = y,
+                     x = x)
+cv.error <- rep(0,4)
+for(i in 1:4){
+    glm.fit <- glm(y~poly(x,i),data=data_1)
+    cv.error[i] <- cv.glm(data_1,glm.fit)$delta[1]
+}
+names(cv.error) <- c("poly=1","poly=2","poly=3","poly=4")
+cv.error
+```
+   (d) Which of the models in (c) had the smallest LOOCV error? Is this what you expected? Explain your answer.
+```{r}
+which.min(cv.error)
+```
+##### The second model has the smallest LOOCV error. This is what I expected, because I set $Y =   X -2 X^2 + \epsilon$
+
+   (e) Comment on the statistical significance of the coefficient estimates that results from fitting each of the models in (c) using least squares. Do these results agree with the conclusions drawnbased on the cross-validation results?
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+result <-matrix(NA,nrow=1,ncol=5)
+for(i in 1:4){
+    glm.fit <- glm(y~poly(x,i),data=data_1)
+    cv.coef <- as.vector(coef(glm.fit))
+    n <- 4-i
+    if(i==4){
+            cv.coef <- matrix(cv.coef,nrow=1)
+            }else{
+                cv.coef <- matrix(append(cv.coef,rep(NA,n)),nrow=1)
+            }
+    result <- rbind(result, cv.coef)
+}
+result <- result[-1,]
+rownames(result) <- c("poly=1","poly=2","poly=3","poly=4")
+colnames(result) <- c("Intercept","coef.poly(x,1)","coef.poly(x,2)","coef.poly(x,3)","coef.poly(x,4)")
+result
+```
+##### When poly=3 or poly=4, the coefficient of $x^3$ and $x^4$ are very small. Results agree with the conclusions drawnbased on the cross-validation results.
+
+# Question 2 (based on JWHT Chapter 6, Problem 8)
+
+In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
+
+   (a) Set the random seed to be 10.  Use the `rnorm()` function to generate a predictor `X` of length `n = 100,` as well as a noise vector $\epsilon$ of length `n = 100.`
+
+```{r}
+set.seed(10)
+x <- rnorm(100)
+epsilon <- rnorm(100)
+```
+
+   (b) Generate a response vector `Y` of length `n = 100` according to the model $$Y = 4 + 3 X + 2 X^2 + X^3 + \epsilon.$$
+   
+```{r}
+y <- 4 + 3*x + 2*x^2 + x^3 + epsilon
+```
+   (c) Use the `regsubsets()` function to perform best subset selection in order to choose the best model containing the predictors $X, X^2, \ldots, X^10.$ What is the best model obtained according to $C_p,$ BIC, and adjusted $R^2$? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the data.frame() function to create a single data set containing both X and Y .
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+library(leaps)
+num <- matrix(seq(1,10,1),nrow=1,ncol=10)
+x_poly <- apply(num,2,function(n){return(x^n)})
+data_2 <- data.frame('y' = y,
+                     'x^1' = x_poly[,1],
+                     'x^2' = x_poly[,2],
+                     'x^3' = x_poly[,3],
+                     'x^4' = x_poly[,4],
+                     'x^5' = x_poly[,5],
+                     'x^6' = x_poly[,6],
+                     'x^7' = x_poly[,7],
+                     'x^8' = x_poly[,8],
+                     'x^9' = x_poly[,9],
+                     'x^10' = x_poly[,10] )
+regfit.full <- regsubsets(y~.,data_2)
+reg.summary <- summary(regfit.full)
+names(reg.summary)
+par(mfrow=c(1,3))
+plot(reg.summary$cp,xlab="Number of Variables",ylab="CP",typle="1")
+points(which.min(reg.summary$cp),
+       reg.summary$cp[which.min(reg.summary$cp)],
+       col="red", cex=2, pch=20)
+plot(reg.summary$bic,xlab="Number of Variables",ylab="BIC",typle="1")
+points(which.min(reg.summary$bic),
+       reg.summary$bic[which.min(reg.summary$bic)],
+       col="red", cex=2, pch=20)
+plot(reg.summary$adjr2,xlab="Number of Variables",ylab="adjr2",typle="1")
+points(which.max(reg.summary$adjr2),
+       reg.summary$adjr2[which.max(reg.summary$adjr2)],
+       col="red", cex=2, pch=20)
+```
+ 
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+
+par(mfrow=c(1,1))
+plot(regfit.full,scale = "Cp")
+# The coefficient estimates associated with best cp
+coef(regfit.full,which.min(reg.summary$cp))
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+plot(regfit.full,scale = "bic")
+# The coefficient estimates associated with best bic
+coef(regfit.full,which.min(reg.summary$bic))
+```
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+plot(regfit.full,scale = "adjr2")
+# The coefficient estimates associated with best adjr2
+coef(regfit.full,which.max(reg.summary$adjr2))
+```
+   (d) Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)?
+
+```{r}
+forward  <- regsubsets(y ~ poly(x, 10, raw = T), data = data_2, nvmax = 10, method = "forward" )
+backward <- regsubsets(y ~ poly(x, 10, raw = T), data = data_2, nvmax = 10, method = "backward")
+forwardsummary  <- summary(forward)
+backwardsummary <- summary(backward)
+
+par(mfrow = c(3, 2))
+plot(forwardsummary$cp,ylab = "Forward Cp",xlab="Number of Variables")
+points(which.min(forwardsummary$cp), 
+       forwardsummary$cp[which.min(forwardsummary$cp)],   
+       pch = 20, col = "red", lwd = 7)
+
+plot(backwardsummary$cp, ylab = "Backward Cp",xlab="Number of Variables")
+points(which.min(backwardsummary$cp), 
+       backwardsummary$cp[which.min(backwardsummary$cp)],
+       pch = 20, col = "red", lwd = 7)
+
+plot(forwardsummary$bic, ylab = "Forward BIC",xlab="Number of Variables")
+points(which.min(forwardsummary$bic), 
+       forwardsummary$bic[which.min(forwardsummary$bic)], 
+       pch = 20, col = "red", lwd = 7)
+
+plot(backwardsummary$bic, ylab = "Backward BIC",xlab="Number of Variables")
+points(which.min(backwardsummary$bic), 
+       backwardsummary$bic[which.min(backwardsummary$bic)], 
+       pch = 20, col = "red", lwd = 7)
+
+plot(forwardsummary$adjr2, ylab = "Forward Adjusted R2",xlab="Number of Variables")
+points(which.max(forwardsummary$adjr2),
+       forwardsummary$adjr2[which.max(forwardsummary$adjr2)], 
+       pch = 20, col = "red", lwd = 7)
+
+plot(backwardsummary$adjr2, ylab = "Backward Adjusted R2",xlab="Number of Variables")
+points(which.max(backwardsummary$adjr2),
+       backwardsummary$adjr2[which.max(backwardsummary$adjr2)], 
+       pch = 20, col = "red", lwd = 7)
+```
+
+# Question 3 (based on JWHT Chapter 7, Problem 6)
+
+In this exercise, you will further analyze the `Wage` data set.
+
+(a) Perform polynomial regression to predict `wage` using `age.` Use cross-validation to select the optimal degree d for the polynomial. What degree was chosen? Make a plot of the resulting polynomial fit to the data.
+```{r}
+library(ISLR)
+attach(Wage)
+fit <- lm(wage~poly(age,8),data=Wage)
+coef(summary(fit))
+
+# cross-validation
+library(boot)
+cv.error <- rep(NA, 8)
+for (i in 1:8) {
+  glm.fit <- glm(wage~poly(age, i), data=Wage)
+  cv.error[i] = cv.glm(Wage, glm.fit, K=8)$delta[1]
+}
+par(mfrow = c(1, 1))
+plot(1:8, cv.error, xlab="Degree", ylab="CV error", lwd=2, ylim=c(1590, 1700),col="blue")
+
+```
+##### We can see that p-values from the table that there is a sharp drop in the estimated test MSE between the lnear and quadratic fits, but then no clear improvement from using higher-order polynomials. We choose degree two. 
+
+(b) Fit a step function to predict `wage` using `age`, and perform cross-validation to choose the optimal number of cuts. Make a plot of the fit obtained.
+
+```{r,fig.width =6}
+cv.errors <- rep(0, 9)
+for (i in 2:10) {
+  Wage$age.cut <- cut(Wage$age, i)
+  glm.fit <- glm(wage~age.cut, data=Wage)
+  cv.errors[i-1] <- cv.glm(Wage, glm.fit, K=10)$delta[1]
+}
+par(mfrow = c(1, 1))
+plot(2:10, cv.errors, xlab="Number of cuts", ylab="CV.errors", lwd=2)
+n <- which.min(cv.errors)
+points(n+1,cv.errors[n],col="red", cex=2, pch=20)
+```
+##### So the optimal number of cuts is 8
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis",fig.width =7}
+glm.fit <- glm(wage~cut(age, 8), data=Wage)
+age.range <- range(Wage$age)
+age.grid <- seq(from=age.range[1], to=age.range[2])
+glm.pred <- predict(glm.fit, data.frame(age=age.grid))
+par(mfrow = c(1, 1))
+plot(wage~age, data=Wage, col="darkgrey")
+lines(age.grid, glm.pred, col="red")
+```
+
+# Question 4 (based on JWHT Chapter 8, Problem 8)
+
+In the lab, a classification tree was applied to the `Carseats` data set after converting Sales into a qualitative response variable. Now we will seek to predict Sales using regression trees and related approaches, treating the response as a quantitative variable.
+
+(a) Split the data set into a training set and a test set.
+```{r}
+library(ISLR)
+attach(Carseats)
+set.seed(4)
+Carseats.train <- sample(dim(Carseats)[1], dim(Carseats)[1]/2)
+Carseats.test <- Carseats[-Carseats.train,]
+
+```
+
+(b) Fit a regression tree to the training set. Plot the tree, and interpret the results. What test MSE do you obtain?
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis",fig.width =9,fig.height=9}
+library(tree)
+Carseats_tree <- tree(Sales ~ ., Carseats, subset= Carseats.train)
+summary(Carseats_tree)
+plot(Carseats_tree)
+text(Carseats_tree, pretty = 0)
+Carseats_pred = predict(Carseats_tree, Carseats.test)
+mean((Carseats.test$Sales - Carseats_pred)^2)
+```
+
+(c) Use cross-validation in order to determine the optimal level of tree complexity. Does pruning the tree improve the test MSE?
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis"}
+set.seed(15)
+cv_carseats <- cv.tree(Carseats_tree,FUN=prune.tree)
+par(mfrow = c(1, 2))
+plot(cv_carseats$size, cv_carseats$dev, type = "b")
+n <- which.min(cv_carseats$dev)
+points(cv_carseats$size[n],cv_carseats$dev[n],col="red", cex=2, pch=20)
+plot(cv_carseats$k, cv_carseats$dev, type = "b")
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,results="asis",fig.width =9,fig.height=9}
+carseats_prune <- prune.tree(Carseats_tree, best = cv_carseats$size[n])
+par(mfrow = c(1, 1))
+plot(carseats_prune)
+text(carseats_prune, pretty = 0)
+
+pruned_pred <- predict(carseats_prune, Carseats.test)
+mean((Carseats.test$Sales - pruned_pred)^2)
+```
+##### The optimal level of tree complexity is 13
+
+(d) Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the `importance()` function to determine which variables are most important.
+
+```{r}
+library(randomForest)
+set.seed(6)
+rf.carseats <- randomForest(Sales ~ .,Carseats, subset= Carseats.train, mtry = 10, ntree = 500, importance = T)
+rf.pred <- predict(rf.carseats, Carseats.test)
+mean((Carseats.test$Sales - rf.pred)^2)
+importance(rf.carseats)
+
+```
+##### We can see that `Price` and 'ShelveLOv' are the most important
